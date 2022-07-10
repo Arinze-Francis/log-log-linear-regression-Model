@@ -1,0 +1,260 @@
+---
+title: "XYZ company's sales model"
+author: "Arinze Francis"
+date: '2022-07-09'
+output: html_document
+---
+
+# R set up
+
+```{r}
+rm(list=ls())
+options(scipen=999,digits=4)
+rm
+
+```
+
+# Load R packages
+```{r}
+library('lmtest')
+library('lubridate')
+library('data.table')
+library('reshape2')
+library('dplyr')
+library('stringr')
+library('readxl')
+library('broom')
+library('carData')
+library('car')
+library('tidyr')
+library('ggplot2')
+library('nortest')
+library('tseries')
+library('equatiomatic')
+library(fastDummies)
+```
+
+# Import data
+
+```{r}
+data <- read_xlsx("SalesForCourse_quizz_table.xlsx")
+head(data)
+str(data)
+any(is.na(data))
+
+
+
+```
+
+# data Manipulations and cleansing
+
+```{r}
+
+# Add dummy variables to account for seasonality
+
+December <- ifelse(data$Month == "December", 1,0)
+Summer <-  ifelse(data$Month == "July", 1,0)
+Easter <-  ifelse(data$Month == "April", 1,0)
+January <- ifelse(data$Month == "January", 1,0)
+
+
+# Create competeitors' Prices
+
+#BA_price <- data$`Unit Price`*200
+#FCT_price <- data$`Unit Price` * 140
+#DDY_price <- data$`Unit Price` * 100
+Zoo_Price <- data$`Unit Price` * 100
+
+
+# Merge new created variables
+data <- data %>% cbind(Zoo_Price, December,Summer, Easter,January)
+
+
+# Convert the class of country to a Factor Class
+
+#data$Country <- as.factor(data$Country)
+# head(data)
+
+# Selection of relevant columns for modelling
+
+data_1 <- data %>% select(Revenue, Easter,Summer, Zoo_Price ,December, Country,`Customer Gender`,`Product Category`, `Unit Cost`, Month, January,`Unit Price` )
+
+# Removing NA's values
+data_2 <- data_1 %>% na.omit()
+
+any(is.na(data_2))
+
+```
+
+
+# Data Visualizations
+
+```{r}
+
+# Within the comapny visualization.
+
+data_2 %>% ggplot(aes(log(Revenue), group = Country)) + geom_density(aes(fill=Country),alpham= 0.8, colour = 'black')
+
+
+# US provided most revenue to XYZ company, followed by Germany.
+
+data_2 %>% ggplot(aes(Revenue), group = `Product Category`) + geom_density(aes(fill=`Product Category`),alpham= 0.8, colour = 'black')
+
+ggplot(data_2, aes(`Product Category`, Revenue)) + geom_line()
+# Accessories product category had the most revenue.
+
+
+ggplot(data_2, aes(Month , Revenue)) + geom_line()
+# Month of July had the highest revenue as sales goes higher in the summer, followed by February and January. 
+
+
+
+
+ggplot(data_2, aes(`Customer Gender` , Revenue)) + geom_line()
+# Male bought more compared to the females.
+
+
+
+
+# External visualization
+
+boxplot(data_2$`Unit Price`, data_2$Zoo_Price,names = c("price XYZ",  "price ZOO" ))
+
+# XYZ companies price was lower comapred to the ZOO price.
+```
+
+#Estimate linear additive model
+
+```{r}
+
+result <- lm(Revenue ~ Easter + Summer + Zoo_Price + December+ `Customer Gender` + `Product Category` +  `Unit Cost` + January + `Unit Price` +Country  , data = data_2  )
+summary(result)
+     
+hist(log(data_2$Revenue))
+
+```
+
+# Run multiplicative model
+
+
+```{r}
+
+result_1 <- lm(log(Revenue) ~ Easter + Summer + log(Zoo_Price) + December + `Customer Gender` + `Product Category` +  log(`Unit Cost`) + January +  Country   , data = data_2 )
+
+summary(result_1)
+
+```
+
+# Conclusions and Managerial Implications
+XYZ company has the lowest price. The revenue of XYZ responds strongly to own unit cost changes ($\gamma_{11}=0.16$). XYZ company revenue benefited greatly from Zoo's price ($\gamma_{12}=1.033$). About 92% (multiple R-square) of the fluctuations of the revenue of XYZ can be explained by the models. Ifbikes is increased by one percent, revenue is to increase by 0.31 percent (holding all other variables constant).
+
+
+
+
+
+
+# Extra stuff
+
+```{r}
+A<-tidy(result_1) # broom package
+A
+vif(result_1) # car package
+# zoo price and unit cost were above 5
+
+
+y<-as.vector(exp(fitted(result_1)+0.5*summary(result_1)$sigma**2)) # obtain untransformed sales figures
+head(y)
+
+```
+
+
+# Model Validsation
+
+Assumption 1: homoskedasticity
+
+```{r}
+
+
+
+library(olsrr)
+
+result_1 %>% ols_test_breusch_pagan()
+
+# Interpretation: the p-value is above an appropriate threshold (p < 0.05) therefore the null hypothesis of homoskedasticity is accepted
+
+
+
+```
+
+
+# Model Validsation
+
+# Outliers
+
+
+```{r}
+
+data_3 <- data_2 %>% mutate(Residuals = residuals(result_1, type = 'pearson'),
+                      Index=1:nrow(data_2))
+head(data_3)
+
+
+# Visualization of the Outliers
+data_4 <- data_3 %>% ggplot(aes(x=Index, y=abs(Residuals))) + geom_hline(yintercept = 2, 
+                                                                   col='firebrick') + geom_text(aes(label = Index), 
+                                                                                                                col = 'darkblue', size = 3) + labs(title = 'Outlier check', 
+                                                                                                                                                   y = "Residual", x = "Index") + theme_classic()
+data_4
+
+
+#  There is no outliers as no figures were above the 2.0 threshold.
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
